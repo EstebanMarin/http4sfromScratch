@@ -1,0 +1,8 @@
+/.bsp/
+/.bloop
+/.vscode
+/.metals
+project/.bloop
+project/project/metals.sbt
+project/metals.sbt
+target/
