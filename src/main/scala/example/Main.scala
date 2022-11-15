@@ -12,7 +12,65 @@ import org.http4s.dsl.impl._
 import org.http4s.headers._
 import org.http4s.implicits._
 import org.http4s.server._
+import java.time.Year
+import scala.util.Try
 
 object Main extends App {
-  println(s"Hello from Main")
+  type Actor = String
+  case class Movie(
+      id: String,
+      title: String,
+      year: Int,
+      actors: List[Actor],
+      director: StringBuilder
+  )
+
+  object DirectorQueryParamMatcher
+      extends QueryParamDecoderMatcher[String]("director")
+
+  implicit val yearQueryParamDecoder: QueryParamDecoder[Year] =
+    QueryParamDecoder[Int].map(Year.of(_))
+
+  object YearQueryParamMatcher
+      extends OptionalQueryParamDecoderMatcher[Year]("year")
+
+  case class Director(firstName: String, lastName: String) {
+    override def toString = s"$firstName $lastName"
+  }
+
+  def movieRoutes[F[_]: Monad]: HttpRoutes[F] = {
+    val dsl: Http4sDsl[F] = Http4sDsl[F]
+    import dsl._
+    HttpRoutes.of[F] {
+      case GET -> Root / "movies" :? DirectorQueryParamMatcher(
+            director
+          ) +& YearQueryParamMatcher(year) =>
+        ???
+      case GET -> Root / "movies" / UUIDVar(movieId) / "actors" => ???
+    }
+  }
+
+  object DirectorPath {
+    def unapply(str: String): Option[Director] =
+      Try {
+        val tokens = str.split(" ")
+        Director(tokens(0), tokens(1))
+      }.toOption
+  }
+
+  def directorRoutes[F[_]: Monad]: HttpRoutes[F] = {
+    val dsl: Http4sDsl[F] = Http4sDsl[F]
+    import dsl._
+    HttpRoutes.of[F] {
+      case GET -> Root / "directors" / DirectorPath(director) =>
+        ???
+    }
+  }
+
+  def allRoutest[F[_]: Monad]: HttpRoutes[F] =
+    movieRoutes[F] <+> directorRoutes[F]
+
+  def allRoutesComplete [F[_]: Monad] : HttpApp[F] =
+    ???
+
 }
