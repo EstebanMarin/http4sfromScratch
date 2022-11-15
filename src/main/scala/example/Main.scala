@@ -141,7 +141,7 @@ object Main extends IOApp {
 
     BlazeServerBuilder[IO](runtime.compute)
       .bindHttp(9000, "localhost")
-      .withHttpApp(allRoutesComplete)
+      .withHttpApp(apis)
       .resource
       .use(_ => IO.never)
       .as(ExitCode.Success)
