@@ -14,15 +14,44 @@ import org.http4s.implicits._
 import org.http4s.server._
 import java.time.Year
 import scala.util.Try
+import java.util.UUID
 
 object Main extends App {
+
+  // Database
+  val snjl: Movie = Movie(
+    "6bcbca1e-efd3-411d-9f7c-14b872444fce",
+    "Zack Snyder's Justice League",
+    2021,
+    List(
+      "Henry Cavill",
+      "Gal Godot",
+      "Ezra Miller",
+      "Ben Affleck",
+      "Ray Fisher",
+      "Jason Momoa"
+    ),
+    "Zack Snyder"
+  )
+
+  val movies: Map[String, Movie] = Map(snjl.id -> snjl)
+  // End data base
+
+  // Business logic
+  private def findMovieById(movieId: UUID) =
+    movies.get(movieId.toString)
+
+  private def findMoviesByDirector(director: String): List[Movie] =
+    movies.values.filter(_.director == director).toList
+
+  // end business logic
   type Actor = String
   case class Movie(
       id: String,
       title: String,
       year: Int,
       actors: List[Actor],
-      director: StringBuilder
+      director: String
   )
 
   case class DirectorDetails(firstname: String, lastName: String)
@@ -34,10 +63,14 @@ object Main extends App {
       extends QueryParamDecoderMatcher[String]("director")
 
   implicit val yearQueryParamDecoder: QueryParamDecoder[Year] =
-    QueryParamDecoder[Int].map(Year.of(_))
+    QueryParamDecoder[Int].emap(yearInt =>
+      Try(Year.of(yearInt)).toEither.leftMap(fail =>
+        ParseFailure(s"ERROR Parsing Year", s"${fail}")
+      )
+    )
 
   object YearQueryParamMatcher
-      extends OptionalQueryParamDecoderMatcher[Year]("year")
+      extends OptionalValidatingQueryParamDecoderMatcher[Year]("year")
 
   case class Director(firstName: String, lastName: String) {
     override def toString = s"$firstName $lastName"
@@ -49,9 +82,26 @@ object Main extends App {
     HttpRoutes.of[F] {
       case GET -> Root / "movies" :? DirectorQueryParamMatcher(
             director
-          ) +& YearQueryParamMatcher(year) =>
-        ???
-      case GET -> Root / "movies" / UUIDVar(movieId) / "actors" => ???
+          ) +& YearQueryParamMatcher(maybeYear) =>
+        val moviesByDirector = findMoviesByDirector(director)
+        maybeYear match {
+          case None => Ok(moviesByDirector.asJson)
+          case Some(validatedYear) =>
+            validatedYear.fold(
+              _ => BadRequest(s"Error in Year format"),
+              year => {
+                val moviesByDirectorAndYear =
+                  moviesByDirector.filter(_.year == year.getValue())
+                Ok(moviesByDirectorAndYear.asJson)
+              }
+            )
+        }
+      case GET -> Root / "movies" / UUIDVar(movieId) / "actors" =>
+        findMovieById(movieId) match {
+          case None        => BadRequest("cannot fetch movie ID")
+          case Some(movie) => Ok(movie.actors.asJson)
+        }
+
     }
   }
 
@@ -69,7 +119,7 @@ object Main extends App {
     HttpRoutes.of[F] {
       case GET -> Root / "directors" / DirectorPath(director: Director) =>
         directorDetailsDB.get(director) match {
-          case None => NotFound(s"no ${director} found")
+          case None        => NotFound(s"no ${director} found")
           case Some(value) => Ok(value.asJson)
         }
     }
