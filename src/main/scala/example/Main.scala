@@ -15,8 +15,10 @@ import org.http4s.server._
 import java.time.Year
 import scala.util.Try
 import java.util.UUID
+import cats.conversions.all
+import org.http4s.server.blaze.BlazeServerBuilder
 
-object Main extends App {
+object Main extends IOApp {
 
   // Database
   val snjl: Movie = Movie(
@@ -57,7 +59,7 @@ object Main extends App {
   case class DirectorDetails(firstname: String, lastName: String)
 
   val directorDetailsDB: Map[Director, DirectorDetails] =
-    Map(Director("Zack", "Snider") -> DirectorDetails("Zack", "Snider"))
+    Map(Director("Zack", "Snyder") -> DirectorDetails("Zack", "Snyder"))
 
   object DirectorQueryParamMatcher
       extends QueryParamDecoderMatcher[String]("director")
@@ -125,10 +127,24 @@ object Main extends App {
     }
   }
 
-  def allRoutest[F[_]: Monad]: HttpRoutes[F] =
+  def allRoutes[F[_]: Monad]: HttpRoutes[F] =
     movieRoutes[F] <+> directorRoutes[F]
 
   def allRoutesComplete[F[_]: Monad]: HttpApp[F] =
-    ???
+    allRoutes[F].orNotFound
+
+  override def run(args: List[String]): IO[ExitCode] = {
+    val apis = Router(
+      "/api" -> movieRoutes[IO],
+      "/api/admin" -> directorRoutes[IO]
+    ).orNotFound
+
+    BlazeServerBuilder[IO](runtime.compute)
+      .bindHttp(9000, "localhost")
+      .withHttpApp(allRoutesComplete)
+      .resource
+      .use(_ => IO.never)
+      .as(ExitCode.Success)
+  }
 
 }
