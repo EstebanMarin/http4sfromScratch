@@ -25,6 +25,11 @@ object Main extends App {
       director: StringBuilder
   )
 
+  case class DirectorDetails(firstname: String, lastName: String)
+
+  val directorDetailsDB: Map[Director, DirectorDetails] =
+    Map(Director("Zack", "Snider") -> DirectorDetails("Zack", "Snider"))
+
   object DirectorQueryParamMatcher
       extends QueryParamDecoderMatcher[String]("director")
 
@@ -62,15 +67,18 @@ object Main extends App {
     val dsl: Http4sDsl[F] = Http4sDsl[F]
     import dsl._
     HttpRoutes.of[F] {
-      case GET -> Root / "directors" / DirectorPath(director) =>
-        ???
+      case GET -> Root / "directors" / DirectorPath(director: Director) =>
+        directorDetailsDB.get(director) match {
+          case None => NotFound(s"no ${director} found")
+          case Some(value) => Ok(value.asJson)
+        }
     }
   }
 
   def allRoutest[F[_]: Monad]: HttpRoutes[F] =
     movieRoutes[F] <+> directorRoutes[F]
 
-  def allRoutesComplete [F[_]: Monad] : HttpApp[F] =
+  def allRoutesComplete[F[_]: Monad]: HttpApp[F] =
     ???
 
 }
